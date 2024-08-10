@@ -1,0 +1,5 @@
+DATABASE = './database/users.db'
+creds_file = 'res/creds.json'
+msgs_file = 'res/msgs.json'
+cvs_folder = 'data/cvs'
+embeddings_folder = 'data/embeddings'
