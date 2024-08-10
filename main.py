@@ -1,5 +1,6 @@
 from flask import Flask, request, g, jsonify
 from urls import DATABASE, msgs_file
+import helpers
 import json
 import sqlite3
 import cloudapi
@@ -63,7 +64,7 @@ def incoming():
                             if user_data is not None:
                                 pass
                             else:
-                                pass
+                                cloudapi.send_msg(from_number, "messages['welcome'].format(first_name)")
 
         db.commit()
         cursor.close()
