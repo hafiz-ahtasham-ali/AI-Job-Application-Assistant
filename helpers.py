@@ -1,5 +1,12 @@
 from langchain_community.document_loaders import PyMuPDFLoader
+from langchain_community.callbacks import get_openai_callback
 from langchain_openai import ChatOpenAI
+import base64
+import requests
+
+gpt_model = 'gpt-4o-mini'
+# openai_api_key = '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'
+openai_api_key = 'sk-whatsapp-m4BOtm3wYwyDvL52JJgAT3BlbkFJf2jH4gz7Uck5yCaco1g5'
 
 def validate_pdf_file(file_path):
     # Check the file extension
@@ -17,12 +24,12 @@ def extract_pdf_text(file_path):
 
 def validate_cv(cv_text):
     llm = ChatOpenAI(
-        model="gpt-4o",
+        model=gpt_model,
         temperature=0,
         max_tokens=1,
         timeout=None,
         max_retries=2,
-        api_key="sk-whatsapp-m4BOtm3wYwyDvL52JJgAT3BlbkFJf2jH4gz7Uck5yCaco1g5",  # if you prefer to pass api key in directly instaed of using env vars
+        api_key=openai_api_key,  # if you prefer to pass api key in directly instaed of using env vars
     )
 
     cv_validation_prompt = f"""
@@ -44,21 +51,21 @@ Only return `1` if the CV meets all the criteria, and `0` if it does not. If any
         ("human", cv_validation_prompt),
     ]
 
-    ai_msg = llm.invoke(messages)
-
-    if ai_msg.content == "1":
-        return True
-    else:
-        return False
+    with get_openai_callback() as cb:
+        ai_msg = llm.invoke(messages)
+        if ai_msg.content == "1":
+            return cb.total_cost
+        else:
+            return False
 
 def validate_job(job_text):
     llm = ChatOpenAI(
-        model="gpt-4o",
+        model=gpt_model,
         temperature=0,
         max_tokens=1,
         timeout=None,
         max_retries=2,
-        api_key="sk-whatsapp-m4BOtm3wYwyDvL52JJgAT3BlbkFJf2jH4gz7Uck5yCaco1g5",  # if you prefer to pass api key in directly instaed of using env vars
+        api_key=openai_api_key,  # if you prefer to pass api key in directly instaed of using env vars
     )
 
     job_validation_prompt = f"""
@@ -78,21 +85,21 @@ Only return `1` if the job meets all the criteria, and `0` if it does not. If an
         ("human", job_validation_prompt),
     ]
 
-    ai_msg = llm.invoke(messages)
+    with get_openai_callback() as cb:
+        ai_msg = llm.invoke(messages)
+        if ai_msg.content == "1":
+            return cb.total_cost
+        else:
+            return False
 
-    if ai_msg.content == "1":
-        return True
-    else:
-        return False
-
-def generate_email_draft(cv_text, job_text):
+def create_draft_email(cv_text, job_text):
     llm = ChatOpenAI(
-        model="gpt-4o",
+        model=gpt_model,
         temperature=0.3,
         max_tokens=None,
         timeout=None,
         max_retries=2,
-        api_key="sk-whatsapp-m4BOtm3wYwyDvL52JJgAT3BlbkFJf2jH4gz7Uck5yCaco1g5",  # if you prefer to pass api key in directly instaed of using env vars
+        api_key=openai_api_key,  # if you prefer to pass api key in directly instaed of using env vars
     )
 
     generate_email_draft_prompt = f"""
@@ -121,9 +128,9 @@ Generate the email in a professional and engaging tone."""
         ("human", generate_email_draft_prompt),
     ]
 
-    ai_msg = llm.invoke(messages)
-
-    return ai_msg.content
+    with get_openai_callback() as cb:
+        ai_msg = llm.invoke(messages)
+        return {'content': ai_msg.content, 'cost': cb.total_cost}
 
 def adjust_email_draft(email_text, user_prompt):
     llm = ChatOpenAI(
@@ -132,7 +139,7 @@ def adjust_email_draft(email_text, user_prompt):
         max_tokens=None,
         timeout=None,
         max_retries=2,
-        api_key="sk-whatsapp-m4BOtm3wYwyDvL52JJgAT3BlbkFJf2jH4gz7Uck5yCaco1g5",  # if you prefer to pass api key in directly instaed of using env vars
+        api_key=openai_api_key,  # if you prefer to pass api key in directly instaed of using env vars
     )
 
     messages = [
@@ -144,6 +151,44 @@ def adjust_email_draft(email_text, user_prompt):
         ("human", user_prompt),
     ]
 
-    ai_msg = llm.invoke(messages)
+    with get_openai_callback() as cb:
+        ai_msg = llm.invoke(messages)
+        return {'content': ai_msg.content, 'cost': cb.total_cost}
 
-    return ai_msg.content
+def extract_text_from_img(image_path):
+    # Function to encode the image
+    def encode_image(image_path):
+        with open(image_path, "rb") as image_file:
+            return base64.b64encode(image_file.read()).decode('utf-8')
+    # Getting the base64 string
+    base64_image = encode_image(image_path)
+    headers = {
+    "Content-Type": "application/json",
+    "Authorization": f"Bearer {openai_api_key}"
+    }
+    payload = {
+    "model": gpt_model,
+    "messages": [
+        {
+        "role": "user",
+        "content": [
+            {
+            "type": "text",
+            "text": "Convert image to text"
+            },
+            {
+            "type": "image_url",
+            "image_url": {
+                "url": f"data:image/jpeg;base64,{base64_image}"
+            }
+            }
+        ]
+        }
+    ],
+    "max_tokens": 300
+    }
+    response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+    prompt_cost = (response.json()["usage"]["prompt_tokens"] * 0.15) / 1000000
+    completion_cost = (response.json()["usage"]["completion_tokens"] * 0.6) / 1000000
+    total_cost = prompt_cost + completion_cost
+    return {'content': response.json()["choices"][0]["message"]["content"], 'cost': total_cost}

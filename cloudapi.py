@@ -1,6 +1,6 @@
 import json
 import requests
-from urls import creds_file
+from urls import creds_file, cvs_folder, imgs_folder
 
 # Load credentials from creds.json
 try:
@@ -66,3 +66,39 @@ def send_btn_msg(to, message, raw_btn_list, btn_ids_list=[]):
         pass
     else:
         print("Failed to send message. Error:", response.text)
+
+def fetch_media_data(media_id, file_name):
+    url = f'https://graph.facebook.com/v19.0/{media_id}/'
+    headers = {
+        'Authorization': f'Bearer {temp_access_token}',
+    }
+    response = requests.get(url, headers=headers)
+    url = response.json()['url']
+    response = requests.get(url, headers=headers)
+    # Check if the request was successful
+    if response.status_code == 200:
+        # Save the content to a file
+        with open(f'{cvs_folder}/{file_name}.pdf', 'wb') as file:
+            file.write(response.content)
+        return True
+    else:
+        print(f'Failed to retrieve the file. Status code: {response.status_code}')
+        return False
+
+def fetch_image_data(media_id, file_name):
+    url = f'https://graph.facebook.com/v19.0/{media_id}/'
+    headers = {
+        'Authorization': f'Bearer {temp_access_token}',
+    }
+    response = requests.get(url, headers=headers)
+    url = response.json()['url']
+    response = requests.get(url, headers=headers)
+    # Check if the request was successful
+    if response.status_code == 200:
+        # Save the content to a file
+        with open(f'{imgs_folder}/{file_name}.jpg', 'wb') as file:
+            file.write(response.content)
+        return True
+    else:
+        print(f'Failed to retrieve the file. Status code: {response.status_code}')
+        return False
